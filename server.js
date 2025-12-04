@@ -19,27 +19,40 @@ app.use(express.static(path.join(__dirname, "public")));
 let lastData = {};
 let lastTimestamp = 0;
 
+// ESP’ye toggle komutu gönderecek WebSocket clientları
+function sendToggleToESP(){
+  wss.clients.forEach(client=>{
+    if(client.readyState===1) client.send("TOGGLE_RELAY");
+  });
+}
+
+// Data endpoint
 app.post("/api/data", (req,res)=>{
-  const payload = req.body || {};
-  lastData = payload;
+  lastData = req.body||{};
   lastTimestamp = Date.now();
   const msg = JSON.stringify({ type:"update", data:lastData, ts:lastTimestamp });
   wss.clients.forEach(c=>{ if(c.readyState===1) c.send(msg); });
-  res.status(200).json({ status:"ok" });
+  res.json({status:"ok"});
 });
 
-app.get("/api/last",(req,res)=>res.json({ data:lastData, ts:lastTimestamp }));
+app.get("/api/last", (req,res)=>res.json({data:lastData, ts:lastTimestamp}));
 
-wss.on("connection",(ws)=>{
-  ws.send(JSON.stringify({ type:"init", data:lastData, ts:lastTimestamp }));
+// Röle toggle endpoint
+app.post("/api/toggle",(req,res)=>{
+  sendToggleToESP();
+  res.json({status:"ok"});
+});
+
+wss.on("connection", ws=>{
+  ws.send(JSON.stringify({type:"init", data:lastData, ts:lastTimestamp}));
 });
 
 setInterval(()=>{
   if(Date.now()-lastTimestamp>10000){
-    const msg=JSON.stringify({ type:"offline", data:null, ts:lastTimestamp });
+    const msg = JSON.stringify({type:"offline", data:null, ts:lastTimestamp});
     wss.clients.forEach(c=>{ if(c.readyState===1) c.send(msg); });
   }
 },3000);
 
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT||10000;
 server.listen(PORT,()=>console.log(`Server running on port ${PORT}`));
