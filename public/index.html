@@ -9,7 +9,7 @@
   header { padding: 12px 0; display:flex; justify-content:center; align-items:center; gap:10px; background:#1f1f1f; font-size:26px; font-weight:bold; box-shadow:0 2px 6px rgba(0,0,0,0.5);}
   #clock { font-size:18px; color:#cfcfcf; }
   #connection { width:14px; height:14px; border-radius:50%; background:red; display:inline-block; vertical-align:middle; }
-  #toggleRelay { margin-left:20px; padding:6px 12px; cursor:pointer; background:#00aaff; color:white; border:none; border-radius:4px; }
+  #toggleRelay { margin-left:20px; padding:6px 12px; cursor:pointer; background:#00aaff; color:white; border:none; border-radius:6px; }
 
   #monitors { display:flex; flex-wrap:wrap; justify-content:center; padding:16px; gap:16px; }
   .monitor { background:#1f1f1f; border-radius:12px; padding:16px; min-width:280px; width:280px; box-shadow:0 4px 12px rgba(0,0,0,0.7); transition:0.3s; border:2px solid transparent; cursor:pointer; }
@@ -44,12 +44,14 @@
 <footer>Son güncelleme: <span id="lastUpdate">-</span></footer>
 
 <script>
+// Monitör isimleri
 const monitors = ["Monitör1","Monitör2","Monitör3","Monitör4"];
-const ESP_IP = "192.168.1.50"; // ESP sabit IP
 
+// Saat güncelleme
 function updateClock(){ document.getElementById("clock").innerText = new Date().toLocaleTimeString(); }
 setInterval(updateClock,1000);
 
+// Monitör tablolarını oluştur
 function createMonitorHTML(monitorId, index){
   const container = document.createElement("div");
   container.className="monitor"; container.id=monitorId;
@@ -82,14 +84,17 @@ function createMonitorHTML(monitorId, index){
 
 monitors.forEach((m,i)=>createMonitorHTML(m,i));
 
+// Timestamp formatlama
 function toFullDate(ts){ const d = new Date(ts); return d.toLocaleDateString()+" "+d.toLocaleTimeString(); }
 
+// WebSocket
 const protocol = (location.protocol==="https:")?"wss:":"ws:";
 const WS_URL = protocol+"//"+location.host;
 const socket = new WebSocket(WS_URL);
 const OFFLINE_THRESHOLD = 10000;
 let lastTs=0;
 
+// Monitörleri resetle
 function resetMonitors(){
   monitors.forEach(m=>{
     const rowEl=document.getElementById(m+"_hat1");
@@ -100,6 +105,7 @@ function resetMonitors(){
   });
 }
 
+// WebSocket eventleri
 socket.addEventListener("open",()=>{ document.getElementById("connection").style.background="limegreen"; resetMonitors(); });
 socket.addEventListener("close",()=>{ makeAllOffline(); });
 socket.addEventListener("message",(e)=>{
@@ -115,6 +121,7 @@ socket.addEventListener("message",(e)=>{
   } catch(err){ console.error(err); }
 });
 
+// UI’ya veri uygula
 function applyDataToUI(rootData){
   monitors.forEach((m,i)=>{
     const rowEl=document.getElementById(m+"_hat1");
@@ -134,6 +141,7 @@ function applyDataToUI(rootData){
   });
 }
 
+// Hücre güncelle
 function updateCell(td, value, alert){
   const valSpan=td.querySelector(".val");
   const led=td.querySelector(".led");
@@ -142,6 +150,7 @@ function updateCell(td, value, alert){
   if(oldValue!==newValue){ valSpan.innerText=newValue; led.style.background = alert ? "red" : "limegreen"; led.classList.add("pulse"); setTimeout(()=>led.classList.remove("pulse"),500); }
 }
 
+// Offline modu
 function makeAllOffline(){
   monitors.forEach((m)=>{
     const rowEl=document.getElementById(m+"_hat1");
@@ -154,19 +163,15 @@ function makeAllOffline(){
 }
 
 function clearOfflineFlags(){ monitors.forEach(m=>document.getElementById(m+"_offline").innerText=""); }
+setInterval(()=>{ if(Date.now()-lastTs > OFFLINE_THRESHOLD){ makeAllOffline(); } },2000);
 
-setInterval(()=>{ if(Date.now()-lastTs>OFFLINE_THRESHOLD){ makeAllOffline(); } },2000);
-
-// Röle toggle butonu ESP'ye direkt istek gönderir
+// 🔹 Röle toggle butonu
 document.getElementById("toggleRelay").addEventListener("click", async () => {
   try{
-    const res = await fetch(`http://${ESP_IP}/toggle`, { method:"POST" });
-    const data = await res.text();
-    alert("Röle durumu: "+data);
-  } catch(err){
-    console.error(err);
-    alert("Röle komutu gönderilemedi!");
-  }
+    const res = await fetch("/api/toggle",{ method:"POST" });
+    const data = await res.json();
+    alert("Röle durumu: "+data.status);
+  } catch(err){ console.error(err); alert("Röle komutu gönderilemedi!"); }
 });
 </script>
 </body>
